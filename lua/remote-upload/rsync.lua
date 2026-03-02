@@ -13,7 +13,11 @@ M.progress = {
 
   total_files = 0,
 
+  completed = false,
+
 }
+
+
 
 function M.build_remote_path(local_path)
   local cfg = config.get()
@@ -171,14 +175,39 @@ function M.upload(files, callback)
             callback("rsync exited with code " .. exit_code, nil)
           end
         else
-          -- Successful upload: retain progress for 4 seconds
-          callback(nil, "Uploaded " .. #files .. " file(s)")
+          -- Successful upload: show 'Uploaded' status for 5 seconds
+
+          local final_count = M.progress.total_files > 0 and M.progress.total_files or #files
+
+          callback(nil, "Uploaded " .. final_count .. " file(s)")
+
           
-          -- Use defer_fn to clear progress after 4 seconds
+
+          -- Set completion state and final message
+
+          M.progress.completed = true
+
+          M.progress.status = "Uploaded " .. final_count .. " files"
+
+          
+
+          -- Use defer_fn to clear progress after 5 seconds
+
           vim.defer_fn(function()
+
             M.progress.active = false
+
+            M.progress.completed = false
+
+            M.progress.status = nil
+
+            M.progress.current_file = 0
+
+            M.progress.total_files = 0
+
             vim.cmd("redrawstatus")
-          end, 4000)
+
+          end, 5000)
         end
       end,
 
@@ -193,7 +222,7 @@ function M.upload(files, callback)
 
     end
 
-  end)
+    end)
 
 end
 
