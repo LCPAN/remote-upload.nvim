@@ -1,0 +1,13 @@
+{
+  "host": "your-server",
+  "remote_prefix": "/var/www",
+  "rsync_flags": "-avz --progress",
+  "auto_upload": false,
+  "ignore": [
+    "node_modules/**",
+    ".git/**",
+    "*.log",
+    "dist/**",
+    "*.swp"
+  ]
+}
