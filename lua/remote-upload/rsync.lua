@@ -22,7 +22,7 @@ M.progress = {
 function M.build_remote_path(local_path)
   local cfg = config.get()
   local cwd = vim.fn.getcwd()
-  local project_name = vim.fn.fnamemodify(cwd, ":t")
+  local project_name = M.get_main_repo_name()
   local relative = vim.fn.fnamemodify(local_path, ":~:.")
   if relative:sub(1, 2) == "./" then
     relative = relative:sub(3)
@@ -30,10 +30,69 @@ function M.build_remote_path(local_path)
   return cfg.remote_prefix .. "/" .. project_name .. "/" .. relative
 end
 
+-- Helper function to get main repository name, handling git worktrees
+-- @param cwd Optional current working directory (for testing)
+function M.get_main_repo_name(cwd)
+  cwd = cwd or vim.fn.getcwd()
+  
+  -- Check if .git exists in current directory
+  local git_path = cwd .. "/.git"
+  
+  -- Check if .git is a directory (regular git repo)
+  local stat = vim.loop.fs_stat(git_path)
+  if stat and stat.type == "directory" then
+    -- Regular git repository, return current directory name
+    return vim.fn.fnamemodify(cwd, ":t")
+  end
+  
+  -- Check if .git is a file (git worktree)
+  if vim.fn.filereadable(git_path) == 1 then
+    -- Read the .git file content
+    local file = io.open(git_path, "r")
+    if not file then
+      -- Failed to open file, fall back to directory name
+      return vim.fn.fnamemodify(cwd, ":t")
+    end
+    
+    local content = file:read("*all")
+    file:close()
+    
+    -- Parse gitdir line: gitdir: /path/to/main/.git/worktrees/worktree-name
+    local gitdir_match = content:match("gitdir:%s*(.+)")
+    if gitdir_match then
+      -- Handle both forward and backward slashes for cross-platform compatibility
+      gitdir_match = gitdir_match:gsub("\\", "/")
+      
+      -- Extract the main repository path
+      -- Remove trailing /worktrees/... part to get to the main .git directory
+      local main_git_path = gitdir_match:match("(.+)/%.git/worktrees/")
+      if not main_git_path then
+        -- Alternative format: might be just /path/to/main/.git
+        main_git_path = gitdir_match:match("(.+)/%.git$")
+      end
+      
+      if main_git_path then
+        -- Return the basename of the main repository
+        return vim.fn.fnamemodify(main_git_path, ":t")
+      else
+        -- Malformed .git file, fall back to directory name
+        return vim.fn.fnamemodify(cwd, ":t")
+      end
+    else
+      -- Malformed .git file (no gitdir line), fall back to directory name
+      return vim.fn.fnamemodify(cwd, ":t")
+    end
+  end
+  
+  -- No .git file or directory, return current directory name
+  return vim.fn.fnamemodify(cwd, ":t")
+end
+
+
 function M.build_remote_dir()
   local cfg = config.get()
   local cwd = vim.fn.getcwd()
-  local project_name = vim.fn.fnamemodify(cwd, ":t")
+  local project_name = M.get_main_repo_name()
   return cfg.remote_prefix .. "/" .. project_name
 end
 
