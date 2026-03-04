@@ -263,4 +263,136 @@ describe('get_main_repo_name', function()
     -- Should fall back to directory name
     assert.equals(dir_name, result)
   end)
+
+  it('should return main repository name for git worktree with .bare directory', function()
+    -- Create main repository with .bare directory (user's specific scenario)
+    local main_repo_name = "user_database"
+    local main_repo_path = test_dir .. "/" .. main_repo_name
+    uv.fs_mkdir(main_repo_path, 448)
+    local bare_dir = main_repo_path .. "/.bare"
+    uv.fs_mkdir(bare_dir, 448)
+    
+    -- Create worktree directory structure matching user's scenario
+    local worktree_path = test_dir .. "/feature/refect"
+    uv.fs_mkdir(test_dir .. "/feature", 448)
+    uv.fs_mkdir(worktree_path, 448)
+    
+    -- Create .git file in worktree pointing to .bare directory
+    local git_file_content = "gitdir: " .. bare_dir .. "/worktrees/refect"
+    write_file(worktree_path .. "/.git", git_file_content)
+    
+    -- Change to worktree directory
+    vim.cmd("cd " .. worktree_path)
+    
+    local result = rsync.get_main_repo_name()
+    assert.equals(main_repo_name, result)
+  end)
+  
+  it('should return main repository name for git worktree with .git-custom directory', function()
+    -- Create main repository with .git-custom directory
+    local main_repo_name = "custom-repo"
+    local main_repo_path = test_dir .. "/" .. main_repo_name
+    uv.fs_mkdir(main_repo_path, 448)
+    local custom_git_dir = main_repo_path .. "/.git-custom"
+    uv.fs_mkdir(custom_git_dir, 448)
+    
+    -- Create worktree
+    local worktree_name = "custom-worktree"
+    local worktree_path = test_dir .. "/" .. worktree_name
+    uv.fs_mkdir(worktree_path, 448)
+    
+    -- Create .git file in worktree pointing to .git-custom directory
+    local git_file_content = "gitdir: " .. custom_git_dir .. "/worktrees/" .. worktree_name
+    write_file(worktree_path .. "/.git", git_file_content)
+    
+    -- Change to worktree directory
+    vim.cmd("cd " .. worktree_path)
+    
+    local result = rsync.get_main_repo_name()
+    assert.equals(main_repo_name, result)
+  end)
+  
+  it('should return main repository name for git worktree with complex nested path', function()
+    -- Create main repository with deeply nested structure
+    local main_repo_name = "deeply-nested-repo"
+    local main_repo_path = test_dir .. "/" .. main_repo_name
+    uv.fs_mkdir(main_repo_path, 448)
+    local git_dir = main_repo_path .. "/.git-internal"
+    uv.fs_mkdir(git_dir, 448)
+    
+    -- Create complex nested worktree path
+    local worktree_path = test_dir .. "/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t/u/v/w/x/y/z"
+    local current_path = test_dir
+    for _, dir in ipairs({"a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z"}) do
+      current_path = current_path .. "/" .. dir
+      uv.fs_mkdir(current_path, 448)
+    end
+    
+    -- Create .git file in worktree pointing to internal git directory
+    local git_file_content = "gitdir: " .. git_dir .. "/worktrees/complex-nested"
+    write_file(worktree_path .. "/.git", git_file_content)
+    
+    -- Change to worktree directory
+    vim.cmd("cd " .. worktree_path)
+    
+    local result = rsync.get_main_repo_name()
+    assert.equals(main_repo_name, result)
+  end)
+  
+  it('should handle multiple non-standard git directory names (.backup, .git-archive, etc.)', function()
+    -- Test various non-standard git directory names
+    local test_cases = {
+      {repo_name = "backup-repo", git_dir_name = ".backup"},
+      {repo_name = "archive-repo", git_dir_name = ".git-archive"},
+      {repo_name = "staging-repo", git_dir_name = ".git-staging"},
+      {repo_name = "prod-repo", git_dir_name = ".git-production"},
+    }
+    
+    for _, test_case in ipairs(test_cases) do
+      local main_repo_path = test_dir .. "/" .. test_case.repo_name
+      uv.fs_mkdir(main_repo_path, 448)
+      local non_standard_git_dir = main_repo_path .. "/" .. test_case.git_dir_name
+      uv.fs_mkdir(non_standard_git_dir, 448)
+      
+      local worktree_name = test_case.repo_name .. "-worktree"
+      local worktree_path = test_dir .. "/" .. worktree_name
+      uv.fs_mkdir(worktree_path, 448)
+      
+      local git_file_content = "gitdir: " .. non_standard_git_dir .. "/worktrees/" .. worktree_name
+      write_file(worktree_path .. "/.git", git_file_content)
+      
+      vim.cmd("cd " .. worktree_path)
+      local result = rsync.get_main_repo_name()
+      assert.equals(test_case.repo_name, result)
+      
+      -- Clean up worktree for next test
+      uv.fs_unlink(worktree_path .. "/.git")
+      uv.fs_rmdir(worktree_path)
+    end
+  end)
+  
+  it('should handle worktree with non-standard git directory and relative path', function()
+    -- Create main repository with non-standard .git directory
+    local main_repo_name = "relative-non-standard"
+    local main_repo_path = test_dir .. "/" .. main_repo_name
+    uv.fs_mkdir(main_repo_path, 448)
+    local bare_dir = main_repo_path .. "/.bare"
+    uv.fs_mkdir(bare_dir, 448)
+    
+    -- Create worktree at same level as main repo
+    local worktree_name = "relative-worktree"
+    local worktree_path = test_dir .. "/" .. worktree_name
+    uv.fs_mkdir(worktree_path, 448)
+    
+    -- Create .git file with relative path to .bare directory
+    local relative_path = "../" .. main_repo_name .. "/.bare/worktrees/" .. worktree_name
+    local git_file_content = "gitdir: " .. relative_path
+    write_file(worktree_path .. "/.git", git_file_content)
+    
+    -- Change to worktree directory
+    vim.cmd("cd " .. worktree_path)
+    
+    local result = rsync.get_main_repo_name()
+    assert.equals(main_repo_name, result)
+  end)
 end)
