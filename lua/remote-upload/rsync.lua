@@ -65,10 +65,10 @@ function M.get_main_repo_name(cwd)
       
       -- Extract the main repository path
       -- Remove trailing /worktrees/... part to get to the main .git directory
-      local main_git_path = gitdir_match:match("(.+)/%.git/worktrees/")
+      local main_git_path = gitdir_match:match("(.+)/[^/]+/worktrees/")
       if not main_git_path then
         -- Alternative format: might be just /path/to/main/.git
-        main_git_path = gitdir_match:match("(.+)/%.git$")
+        main_git_path = gitdir_match:match("(.+)/[^/]+$")
       end
       
       if main_git_path then
